@@ -1,4 +1,4 @@
-name: AWS Service-catalog for launching web application
+name: APIGateway-Lamdba-CloudWatch-SES
 
 on:
   pull_request:
