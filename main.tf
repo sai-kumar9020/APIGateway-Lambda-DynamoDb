@@ -81,7 +81,7 @@ data "archive_file" "lambda_zip" {
 resource "aws_lambda_function" "contact_handler" {
   function_name = "handleContactForm"
   role          = aws_iam_role.lambda_exec_role.arn
-  handler       = "lambda_function.lambda_handler"
+  handler       = "lambda.lambda_handler"
   runtime       = "python3.12"
   filename      = data.archive_file.lambda_zip.output_path
 
