@@ -132,6 +132,26 @@ resource "aws_api_gateway_method" "options" {
   authorization = "NONE"
 }
 
+# Method Response for OPTIONS
+resource "aws_api_gateway_method_response" "options_response" {
+  rest_api_id = aws_api_gateway_rest_api.contact_api.id
+  resource_id = aws_api_gateway_resource.contact.id
+  http_method = "OPTIONS"
+  status_code = "200"
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+   depends_on = [aws_api_gateway_method.options] #First Create options and it response depends on Options block
+}
+
+
 # Mock Integration for OPTIONS
 resource "aws_api_gateway_integration" "options_mock" {
   rest_api_id = aws_api_gateway_rest_api.contact_api.id
@@ -160,25 +180,9 @@ resource "aws_api_gateway_integration_response" "options_mock_response" {
   response_templates = {
     "application/json" = ""
   }
+  depends_on = [aws_api_gateway_integration.options_mock]  #this options_mock_response depends on options_mock block
 }
 
-# Method Response for OPTIONS
-resource "aws_api_gateway_method_response" "options_response" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  resource_id = aws_api_gateway_resource.contact.id
-  http_method = "OPTIONS"
-  status_code = "200"
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-}
 
 # Lambda permission for API Gateway
 resource "aws_lambda_permission" "apigw" {
