@@ -124,65 +124,6 @@ resource "aws_api_gateway_integration" "lambda_post" {
   uri                     = aws_lambda_function.contact_handler.invoke_arn
 }
 
-# OPTIONS Method for CORS
-resource "aws_api_gateway_method" "options" {
-  rest_api_id   = aws_api_gateway_rest_api.contact_api.id
-  resource_id   = aws_api_gateway_resource.contact.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-# Method Response for OPTIONS
-resource "aws_api_gateway_method_response" "options_response" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  resource_id = aws_api_gateway_resource.contact.id
-  http_method = "OPTIONS"
-  status_code = "200"
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-   depends_on = [aws_api_gateway_method.options] #First Create options and it response depends on Options block
-}
-
-
-# Mock Integration for OPTIONS
-resource "aws_api_gateway_integration" "options_mock" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  resource_id = aws_api_gateway_resource.contact.id
-  http_method = "OPTIONS"
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-# CORS Integration Response
-resource "aws_api_gateway_integration_response" "options_mock_response" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  resource_id = aws_api_gateway_resource.contact.id
-  http_method = "OPTIONS"
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
-    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-  }
-
-  response_templates = {
-    "application/json" = ""
-  }
-  depends_on = [aws_api_gateway_integration.options_mock]  #this options_mock_response depends on options_mock block
-}
-
 
 # Lambda permission for API Gateway
 resource "aws_lambda_permission" "apigw" {
