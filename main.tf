@@ -120,7 +120,7 @@ resource "aws_api_gateway_integration" "lambda_post" {
   resource_id             = aws_api_gateway_resource.contact.id
   http_method             = aws_api_gateway_method.post.http_method
   integration_http_method = "POST"
-  type                    = "AWS_PROXY"
+  type                    = "AWS_PROXY"  # Lambda Proxy Integration ,API Gateway forwards the full HTTP request to Lambda as-is, and expects a specific response format.
   uri                     = aws_lambda_function.contact_handler.invoke_arn
 }
 
