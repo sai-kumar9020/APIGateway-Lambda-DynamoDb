@@ -2,6 +2,7 @@ provider "aws" {
   region = var.aws_region
 }
 
+# IAM Role for Lambda
 resource "aws_iam_role" "lambda_exec_role" {
   name = "lambda_exec_contact_form"
 
@@ -15,9 +16,10 @@ resource "aws_iam_role" "lambda_exec_role" {
   })
 }
 
+# IAM Policy for Lambda
 resource "aws_iam_policy" "lambda_policy" {
   name        = "lambda_policy_contact_form"
-  description = "Policy for Lambda to access DynamoDB, SES, and CloudWatch"
+  description = "Allow Lambda to access DynamoDB, SES, and logs"
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -41,11 +43,13 @@ resource "aws_iam_policy" "lambda_policy" {
   })
 }
 
+# Attach IAM policy to role
 resource "aws_iam_role_policy_attachment" "lambda_policy_attach" {
   role       = aws_iam_role.lambda_exec_role.name
   policy_arn = aws_iam_policy.lambda_policy.arn
 }
 
+# DynamoDB Table
 resource "aws_dynamodb_table" "contact_table" {
   name         = var.dynamodb_table_name
   billing_mode = "PAY_PER_REQUEST"
@@ -57,12 +61,23 @@ resource "aws_dynamodb_table" "contact_table" {
   }
 }
 
+# SES Email Identities
+resource "aws_ses_email_identity" "sender" {
+  email = var.sender_email
+}
+
+resource "aws_ses_email_identity" "recipient" {
+  email = var.recipient_email
+}
+
+# Archive the Lambda source code
 data "archive_file" "lambda_zip" {
   type        = "zip"
   source_dir  = "${path.module}/lambda"
   output_path = "${path.module}/lambda.zip"
 }
 
+# Lambda Function
 resource "aws_lambda_function" "contact_handler" {
   function_name = "handleContactForm"
   role          = aws_iam_role.lambda_exec_role.arn
@@ -79,24 +94,19 @@ resource "aws_lambda_function" "contact_handler" {
   }
 }
 
-resource "aws_ses_email_identity" "sender" {
-  email = var.sender_email
-}
-
-resource "aws_ses_email_identity" "recipient" {
-  email = var.recipient_email
-}
-
+# API Gateway - Create REST API
 resource "aws_api_gateway_rest_api" "contact_api" {
   name = "contactFormAPI"
 }
 
+# /contact resource
 resource "aws_api_gateway_resource" "contact" {
   rest_api_id = aws_api_gateway_rest_api.contact_api.id
   parent_id   = aws_api_gateway_rest_api.contact_api.root_resource_id
   path_part   = "contact"
 }
 
+# POST Method
 resource "aws_api_gateway_method" "post" {
   rest_api_id   = aws_api_gateway_rest_api.contact_api.id
   resource_id   = aws_api_gateway_resource.contact.id
@@ -104,6 +114,7 @@ resource "aws_api_gateway_method" "post" {
   authorization = "NONE"
 }
 
+# Lambda Integration for POST
 resource "aws_api_gateway_integration" "lambda_post" {
   rest_api_id             = aws_api_gateway_rest_api.contact_api.id
   resource_id             = aws_api_gateway_resource.contact.id
@@ -113,6 +124,7 @@ resource "aws_api_gateway_integration" "lambda_post" {
   uri                     = aws_lambda_function.contact_handler.invoke_arn
 }
 
+# OPTIONS Method for CORS
 resource "aws_api_gateway_method" "options" {
   rest_api_id   = aws_api_gateway_rest_api.contact_api.id
   resource_id   = aws_api_gateway_resource.contact.id
@@ -120,6 +132,7 @@ resource "aws_api_gateway_method" "options" {
   authorization = "NONE"
 }
 
+# Mock Integration for OPTIONS
 resource "aws_api_gateway_integration" "options_mock" {
   rest_api_id = aws_api_gateway_rest_api.contact_api.id
   resource_id = aws_api_gateway_resource.contact.id
@@ -129,22 +142,27 @@ resource "aws_api_gateway_integration" "options_mock" {
   request_templates = {
     "application/json" = "{\"statusCode\": 200}"
   }
+}
 
-  integration_response {
-    status_code = "200"
+# CORS Integration Response
+resource "aws_api_gateway_integration_response" "options_mock_response" {
+  rest_api_id = aws_api_gateway_rest_api.contact_api.id
+  resource_id = aws_api_gateway_resource.contact.id
+  http_method = "OPTIONS"
+  status_code = "200"
 
-    response_parameters = {
-      "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
-      "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
-      "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-    }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
 
-    response_templates = {
-      "application/json" = ""
-    }
+  response_templates = {
+    "application/json" = ""
   }
 }
 
+# Method Response for OPTIONS
 resource "aws_api_gateway_method_response" "options_response" {
   rest_api_id = aws_api_gateway_rest_api.contact_api.id
   resource_id = aws_api_gateway_resource.contact.id
@@ -162,6 +180,7 @@ resource "aws_api_gateway_method_response" "options_response" {
   }
 }
 
+# Lambda permission for API Gateway
 resource "aws_lambda_permission" "apigw" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
@@ -170,8 +189,15 @@ resource "aws_lambda_permission" "apigw" {
   source_arn    = "${aws_api_gateway_rest_api.contact_api.execution_arn}/*/*"
 }
 
+# Deploy API Gateway
 resource "aws_api_gateway_deployment" "deployment" {
   depends_on = [aws_api_gateway_integration.lambda_post]
   rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  stage_name  = "prod"
+}
+
+# Stage for deployment
+resource "aws_api_gateway_stage" "prod" {
+  deployment_id = aws_api_gateway_deployment.deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.contact_api.id
+  stage_name    = "prod"
 }
